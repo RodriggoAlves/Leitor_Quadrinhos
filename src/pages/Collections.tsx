@@ -12,7 +12,7 @@ export const Collections: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   // Dialog States
-  const [createPrompt, setCreatePrompt] = useState(false);
+  const [createPrompt, setCreatePrompt] = useState<{ targetUniId?: string } | null>(null);
   const [createUniversePrompt, setCreateUniversePrompt] = useState(false);
   
   const [renamePrompt, setRenamePrompt] = useState<{ col: Collection | null }>({ col: null });
@@ -43,10 +43,15 @@ export const Collections: React.FC = () => {
   }, []);
 
   const handleCreate = async (name: string) => {
-    setCreatePrompt(false);
+    const targetUniId = createPrompt?.targetUniId;
+    setCreatePrompt(null);
     if (!name || !name.trim()) return;
     try {
-      await storage.createCollection(name.trim());
+      const newCol = await storage.createCollection(name.trim());
+      if (targetUniId) {
+        newCol.universeId = targetUniId;
+        await storage.updateCollection(newCol);
+      }
       await loadData();
     } catch (err) {
       console.error('Failed to create collection:', err);
@@ -151,7 +156,7 @@ export const Collections: React.FC = () => {
           <FolderOpen className="text-gray-500" size={64} strokeWidth={1.5} />
           <p className="text-gray-400 text-base">Nenhuma coleção</p>
           <button
-            onClick={() => setCreatePrompt(true)}
+            onClick={() => setCreatePrompt({})}
             className="flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-white min-h-[44px]"
             style={{ backgroundColor: '#e50914' }}
           >
@@ -184,6 +189,13 @@ export const Collections: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setCreatePrompt({ targetUniId: uni.id }); setExpandedUniverses(prev => ({ ...prev, [uni.id]: true })); }}
+                      className="p-1.5 rounded-full hover:bg-green-500/20 text-gray-400 hover:text-green-400 transition-colors"
+                      title="Nova Coleção neste Universo"
+                    >
+                      <Plus size={16} />
+                    </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setRenameUniversePrompt({ uni }); }}
                       className="p-1.5 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
@@ -308,7 +320,7 @@ export const Collections: React.FC = () => {
       {/* Fixed Create Button */}
       <div className="fixed bottom-24 right-4 md:bottom-8 md:right-8 z-40">
         <button
-          onClick={() => setCreatePrompt(true)}
+          onClick={() => setCreatePrompt({})}
           className="w-14 h-14 bg-[#e50914] text-white rounded-full flex items-center justify-center shadow-lg shadow-red-900/30 hover:scale-105 active:scale-95 transition-transform"
         >
           <Plus size={24} />
@@ -317,11 +329,11 @@ export const Collections: React.FC = () => {
 
       {/* Dialogs */}
       <PromptDialog
-        isOpen={createPrompt}
-        title="Nova Coleção"
+        isOpen={createPrompt !== null}
+        title={createPrompt?.targetUniId ? "Nova Coleção no Universo" : "Nova Coleção"}
         placeholder="Nome da coleção"
         onConfirm={handleCreate}
-        onCancel={() => setCreatePrompt(false)}
+        onCancel={() => setCreatePrompt(null)}
       />
 
       <PromptDialog

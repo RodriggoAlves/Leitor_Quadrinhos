@@ -361,7 +361,12 @@ export const Home: React.FC = () => {
               const isExpanded = expandedRoots[root];
               const rootData = tree[root];
               const hasSubs = Object.keys(rootData.subs).some(s => s !== '__root__');
-              const matchedCollection = collections.find(c => c.name.toLowerCase() === root.toLowerCase());
+              
+              // Only match a collection if it ACTUALLY contains these comics
+              const matchedCollection = collections.find(c => 
+                c.name.toLowerCase() === root.toLowerCase() && 
+                rootData.totalComics.some(comic => c.comicIds.includes(comic.id))
+              );
 
               return (
                 <div key={root}>
