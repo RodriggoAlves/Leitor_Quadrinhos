@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import type { Comic } from '../types';
 import { storage } from '../services/StorageService';
 import { ComicCard } from '../components/ComicCard';
-import { Plus, Search, Download, FolderPlus, ChevronRight, ChevronDown, Library, Trash2, Maximize, Minimize } from 'lucide-react';
+import { Plus, Search, Download, FolderPlus, ChevronRight, ChevronDown, Library, Trash2, Maximize, Minimize, FolderOpen } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ComicParser } from '../services/ComicParser';
 import { useFullscreen } from '../hooks/useFullscreen';
+import { ConfirmDialog } from '../components/Dialogs';
 
 const SortDropdown = ({ value, onChange }: { value: string, onChange: (v: string) => void }) => {
   const [open, setOpen] = React.useState(false);
@@ -13,35 +14,26 @@ const SortDropdown = ({ value, onChange }: { value: string, onChange: (v: string
   const options = [
     { id: 'recent', label: 'Recentes' },
     { id: 'az', label: 'A - Z' },
-    { id: 'za', label: 'Z - A' },
+    { id: 'za', label: 'Z - A' }
   ];
 
-  const currentLabel = options.find(o => o.id === value)?.label || 'A - Z';
-
-  const handleBlur = (e: React.FocusEvent) => {
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-      setOpen(false);
-    }
-  };
-
   return (
-    <div className="relative hidden sm:block" onBlur={handleBlur} tabIndex={-1}>
-      <button 
-        type="button"
+    <div className="relative">
+      <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 bg-white/8 border border-white/10 hover:bg-white/15 text-gray-300 rounded-full py-1.5 px-3 text-xs focus:outline-none transition-colors"
+        className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 transition px-3 py-1.5 rounded-full text-xs font-semibold"
       >
-        {currentLabel}
+        {options.find(o => o.id === value)?.label}
         <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-32 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 flex flex-col py-1">
+        <div className="absolute right-0 mt-2 w-36 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl overflow-hidden z-[60] animate-in fade-in slide-in-from-top-2">
           {options.map(opt => (
             <button
               key={opt.id}
               onClick={() => { onChange(opt.id); setOpen(false); }}
-              className={`w-full text-left px-4 py-2 text-xs transition-colors ${value === opt.id ? 'bg-[#e50914] text-white font-semibold' : 'text-gray-300 hover:bg-white/10'}`}
+              className={`w-full text-left px-4 py-2 text-sm transition-colors ${value === opt.id ? 'bg-[#e50914] text-white font-bold' : 'text-gray-300 hover:bg-white/10'}`}
             >
               {opt.label}
             </button>
@@ -61,7 +53,11 @@ export const Home: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'recent' | 'az' | 'za'>('az');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [pendingFolderImport, setPendingFolderImport] = useState<{ files: File[], defaultName: string } | null>(null);
+  const [collectionNameInput, setCollectionNameInput] = useState('');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [expandedRoots, setExpandedRoots] = useState<Record<string, boolean>>({});
+  const [collections, setCollections] = useState<import('../types').Collection[]>([]);
   const navigate = useNavigate();
   const { isFullscreen, toggleFullscreen } = useFullscreen();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -91,9 +87,9 @@ export const Home: React.FC = () => {
 
 
   useEffect(() => {
-    const h = (e: Event) => { e.preventDefault(); setDeferredPrompt(e); };
-    window.addEventListener('beforeinstallprompt', h);
-    return () => window.removeEventListener('beforeinstallprompt', h);
+    const handler = (e: Event) => { e.preventDefault(); setDeferredPrompt(e); };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
   const handleInstallClick = async () => {
@@ -107,6 +103,8 @@ export const Home: React.FC = () => {
     try {
       const allComics = await storage.getAllComics();
       setComics(allComics);
+      const allCols = await storage.getCollections();
+      setCollections(allCols);
     } catch (err: any) {
       setErrorMsg(`Erro ao carregar: ${err.message}`);
     }
@@ -126,23 +124,29 @@ export const Home: React.FC = () => {
       return;
     }
 
+    if (isFolder && validFiles.length > 0) {
+      const firstPath = validFiles[0].webkitRelativePath || '';
+      const defaultName = firstPath.split('/')[0] || 'Nova Pasta';
+      setCollectionNameInput(defaultName);
+      setPendingFolderImport({ files: validFiles, defaultName });
+      return; // wait for user choice
+    }
+
+    // Default import (no collection)
+    runImport(validFiles, null);
+  };
+
+  const runImport = async (validFiles: File[], collectionNameToCreate: string | null) => {
     setIsImporting(true);
     setImportTotal(validFiles.length);
     setErrorMsg(null);
 
-    let collectionName = '';
     let newCollection: import('../types').Collection | null = null;
-
-    if (isFolder && validFiles.length > 0) {
-      const firstPath = validFiles[0].webkitRelativePath || '';
-      const defaultName = firstPath.split('/')[0] || 'Nova Pasta';
-      if (window.confirm(`Deseja criar uma coleção para os arquivos de "${defaultName}"?`)) {
-        collectionName = defaultName;
-        try {
-          newCollection = await storage.createCollection(collectionName);
-        } catch (e) {
-          console.error(e);
-        }
+    if (collectionNameToCreate) {
+      try {
+        newCollection = await storage.createCollection(collectionNameToCreate);
+      } catch (e) {
+        console.error(e);
       }
     }
 
@@ -153,7 +157,7 @@ export const Home: React.FC = () => {
 
       try {
         let topic = '';
-        if (isFolder && file.webkitRelativePath) {
+        if (file.webkitRelativePath) {
           const parts = file.webkitRelativePath.split('/');
           if (parts.length > 2) {
             topic = parts.slice(1, -1).join('/');
@@ -297,12 +301,7 @@ export const Home: React.FC = () => {
           )}
 
           <button
-            onClick={async () => {
-              if (!window.confirm('Apagar TODOS os quadrinhos da biblioteca?')) return;
-              const all = await storage.getAllComics();
-              for (const c of all) await storage.deleteComic(c.id);
-              await loadComics();
-            }}
+            onClick={() => setShowClearConfirm(true)}
             className="cursor-pointer bg-white/8 hover:bg-red-900/40 border border-white/10 hover:border-red-500/40 text-gray-400 hover:text-red-400 transition px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5"
             title="Limpar biblioteca"
           >
@@ -350,25 +349,43 @@ export const Home: React.FC = () => {
               const isExpanded = expandedRoots[root];
               const rootData = tree[root];
               const hasSubs = Object.keys(rootData.subs).some(s => s !== '__root__');
+              const matchedCollection = collections.find(c => c.name.toLowerCase() === root.toLowerCase());
 
               return (
                 <div key={root}>
                   {/* Section header */}
-                  <div
-                    className="flex items-center justify-between mb-3 cursor-pointer group"
-                    onClick={() => hasSubs && toggleRoot(root)}
-                  >
-                    <h2 className="text-base md:text-lg font-bold text-white flex items-center gap-2 group-hover:text-[#e50914] transition-colors">
-                      {root}
-                      {hasSubs && (
-                        isExpanded
-                          ? <ChevronDown size={18} className="text-gray-400" />
-                          : <ChevronRight size={18} className="text-gray-400" />
+                  <div className="flex flex-col md:flex-row md:items-center justify-between mb-3 gap-2">
+                    <div
+                      className={`flex items-center gap-2 ${hasSubs ? 'cursor-pointer group' : ''}`}
+                      onClick={() => hasSubs && toggleRoot(root)}
+                    >
+                      <h2 className="text-base md:text-lg font-bold text-white flex items-center gap-2 group-hover:text-[#e50914] transition-colors">
+                        <FolderOpen className="text-[#e50914]" size={24} />
+                        {root}
+                        {hasSubs && (
+                          isExpanded
+                            ? <ChevronDown size={18} className="text-gray-400" />
+                            : <ChevronRight size={18} className="text-gray-400" />
+                        )}
+                      </h2>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-gray-500">
+                        {rootData.totalComics.length} quadrinhos
+                      </span>
+                      {matchedCollection && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/collection/${matchedCollection.id}`);
+                          }}
+                          className="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-full font-semibold transition"
+                        >
+                          Abrir Coleção
+                        </button>
                       )}
-                    </h2>
-                    <span className="text-xs text-gray-500">
-                      {rootData.totalComics.length} quadrinhos
-                    </span>
+                    </div>
                   </div>
 
                   {!isExpanded || !hasSubs ? (
@@ -404,6 +421,70 @@ export const Home: React.FC = () => {
           </div>
         )}
       </main>
+
+      {/* ── IMPORT FOLDER MODAL ── */}
+      {pendingFolderImport && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+          <div className="relative bg-[#1a1a1a] rounded-2xl w-full max-w-md p-6 border border-white/10 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <h3 className="text-xl font-bold mb-2">Criar Coleção?</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              Você está importando quadrinhos de uma pasta. Deseja agrupá-los automaticamente em uma Coleção?
+            </p>
+            
+            <div className="mb-6">
+              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">
+                Nome da Coleção
+              </label>
+              <input
+                type="text"
+                value={collectionNameInput}
+                onChange={(e) => setCollectionNameInput(e.target.value)}
+                className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#e50914] transition-colors"
+                placeholder="Ex: Marvel, Batman, etc..."
+              />
+            </div>
+
+            <div className="flex items-center gap-3 justify-end">
+              <button
+                onClick={() => {
+                  const files = pendingFolderImport.files;
+                  setPendingFolderImport(null);
+                  runImport(files, null);
+                }}
+                className="px-5 py-2.5 rounded-xl font-semibold text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                Não
+              </button>
+              <button
+                onClick={() => {
+                  const files = pendingFolderImport.files;
+                  setPendingFolderImport(null);
+                  runImport(files, collectionNameInput.trim() || 'Nova Coleção');
+                }}
+                className="px-5 py-2.5 rounded-xl font-bold bg-[#e50914] hover:bg-red-700 text-white transition-colors"
+              >
+                Sim, Criar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CLEAR LIBRARY MODAL ── */}
+      <ConfirmDialog
+        isOpen={showClearConfirm}
+        title="Limpar Biblioteca"
+        message="Apagar TODOS os quadrinhos da biblioteca?"
+        isDanger={true}
+        onConfirm={async () => {
+          setShowClearConfirm(false);
+          const all = await storage.getAllComics();
+          for (const c of all) await storage.deleteComic(c.id);
+          await loadComics();
+        }}
+        onCancel={() => setShowClearConfirm(false)}
+      />
     </div>
   );
 };

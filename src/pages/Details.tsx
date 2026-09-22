@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import type { Comic } from '../types';
 import { storage } from '../services/StorageService';
 import { ArrowLeft, Play, Trash2, Edit3, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ConfirmDialog, PromptDialog } from '../components/Dialogs';
 
 export const Details: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +16,10 @@ export const Details: React.FC = () => {
   const [isEditingTopic, setIsEditingTopic] = useState(false);
   const [editTopicValue, setEditTopicValue] = useState('');
   
+  // ── Dialog States ──
+  const [createPrompt, setCreatePrompt] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+
   // ── Collections Modal State ──
   const [showCollections, setShowCollections] = useState(false);
   const [allCollections, setAllCollections] = useState<import('../types').Collection[]>([]);
@@ -47,8 +52,8 @@ export const Details: React.FC = () => {
     await loadCollections();
   };
 
-  const handleCreateCollection = async () => {
-    const name = window.prompt('Nome da nova coleção:');
+  const handleCreateCollection = async (name: string) => {
+    setCreatePrompt(false);
     if (!name || !name.trim()) return;
     try {
       const newCol = await storage.createCollection(name.trim());
@@ -58,7 +63,6 @@ export const Details: React.FC = () => {
       await loadCollections();
     } catch (e) {
       console.error(e);
-      alert('Erro ao criar coleção.');
     }
   };
 
@@ -88,8 +92,9 @@ export const Details: React.FC = () => {
     loadData();
   }, [id, navigate]);
 
-  const handleDelete = async () => {
-    if (!comic || !window.confirm('Excluir este quadrinho da biblioteca?')) return;
+  const doDelete = async () => {
+    setDeleteConfirm(false);
+    if (!comic) return;
     setDeleting(true);
     try {
       await storage.deleteComic(comic.id);
@@ -184,7 +189,7 @@ export const Details: React.FC = () => {
               </button>
 
               <button
-                onClick={handleDelete}
+                onClick={() => setDeleteConfirm(true)}
                 disabled={deleting}
                 className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-full text-sm font-semibold transition"
               >
@@ -343,7 +348,7 @@ export const Details: React.FC = () => {
             
             <div className="flex-1 overflow-y-auto px-4 pb-8 space-y-2">
               <button
-                onClick={handleCreateCollection}
+                onClick={() => setCreatePrompt(true)}
                 className="w-full bg-[#2a2a2a] hover:bg-[#333] transition-colors rounded-xl p-4 flex items-center gap-3 text-left"
               >
                 <div className="w-8 h-8 rounded-full bg-[#e50914] flex items-center justify-center text-white shrink-0">
@@ -375,6 +380,24 @@ export const Details: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ── Dialogs ── */}
+      <PromptDialog
+        isOpen={createPrompt}
+        title="Nova Coleção"
+        placeholder="Nome da coleção"
+        onConfirm={handleCreateCollection}
+        onCancel={() => setCreatePrompt(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={deleteConfirm}
+        title="Excluir Quadrinho"
+        message={`Deseja remover "${comic.title}" da biblioteca? O arquivo original não será apagado do dispositivo.`}
+        isDanger={true}
+        onConfirm={doDelete}
+        onCancel={() => setDeleteConfirm(false)}
+      />
     </div>
   );
 };
