@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { storage } from '../services/StorageService';
 import { ComicCard } from '../components/ComicCard';
 import type { Collection, Comic } from '../types';
-import { ArrowLeft, GripVertical, Check, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { ArrowLeft, GripVertical, Check, X, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
+import { ConfirmDialog } from '../components/Dialogs';
 
 export const CollectionDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +16,7 @@ export const CollectionDetail: React.FC = () => {
   const [editComics, setEditComics] = useState<Comic[]>([]);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   const listRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -191,12 +193,21 @@ export const CollectionDetail: React.FC = () => {
         </div>
 
         {!editing ? (
-          <button
-            onClick={enterEditMode}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-sm text-[#e50914] font-medium whitespace-nowrap"
-          >
-            Editar ordem
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setDeleteConfirm(true)}
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-500 hover:text-red-500 transition-colors"
+              aria-label="Excluir Coleção"
+            >
+              <Trash2 size={20} />
+            </button>
+            <button
+              onClick={enterEditMode}
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center text-sm text-[#e50914] font-medium whitespace-nowrap"
+            >
+              Editar ordem
+            </button>
+          </div>
         ) : (
           <div className="flex items-center gap-1">
             <button
@@ -310,6 +321,20 @@ export const CollectionDetail: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* Dialog */}
+      <ConfirmDialog
+        isOpen={deleteConfirm}
+        title="Excluir Coleção"
+        message={`Tem certeza que deseja excluir a coleção "${collection.name}"? ATENÇÃO: Isso também APAGARÁ permanentemente da biblioteca todos os quadrinhos que estiverem dentro dela.`}
+        isDanger={true}
+        onConfirm={async () => {
+          setDeleteConfirm(false);
+          await storage.deleteCollection(collection.id);
+          navigate(-1);
+        }}
+        onCancel={() => setDeleteConfirm(false)}
+      />
     </div>
   );
 };

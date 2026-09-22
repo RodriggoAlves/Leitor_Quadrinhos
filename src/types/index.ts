@@ -21,9 +21,16 @@ export interface ReadingProgress {
   lastRead: number;
 }
 
+export interface Universe {
+  id: string;
+  name: string;
+  createdAt: number;
+}
+
 export interface Collection {
   id: string;
   name: string;
+  universeId?: string;
   comicIds: string[];   // ordered array — also defines display order
   createdAt: number;
   updatedAt: number;

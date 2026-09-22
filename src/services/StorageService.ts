@@ -21,6 +21,11 @@ const COLLECTION_STORE = localforage.createInstance({
   storeName: 'collections'
 });
 
+const UNIVERSE_STORE = localforage.createInstance({
+  name: 'ComicReaderApp',
+  storeName: 'universes'
+});
+
 const STATS_STORE = localforage.createInstance({
   name: 'ComicReaderApp',
   storeName: 'reading_stats'
@@ -81,6 +86,49 @@ class StorageService {
     return await FILE_STORE.getItem<File | Blob>(id);
   }
 
+  // ── Universes ───────────────────────────────────────
+  async getUniverses(): Promise<import('../types').Universe[]> {
+    const universes: import('../types').Universe[] = [];
+    await UNIVERSE_STORE.iterate((value: import('../types').Universe) => {
+      universes.push(value);
+    });
+    return universes.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async getUniverse(id: string): Promise<import('../types').Universe | null> {
+    return await UNIVERSE_STORE.getItem(id);
+  }
+
+  async createUniverse(name: string): Promise<import('../types').Universe> {
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error('Nome inválido');
+    
+    const uni: import('../types').Universe = {
+      id: crypto.randomUUID(),
+      name: trimmed,
+      createdAt: Date.now()
+    };
+    await UNIVERSE_STORE.setItem(uni.id, uni);
+    return uni;
+  }
+
+  async updateUniverse(uni: import('../types').Universe): Promise<void> {
+    await UNIVERSE_STORE.setItem(uni.id, uni);
+  }
+
+  async deleteUniverse(id: string): Promise<void> {
+    // Optional: when deleting universe, should we delete its collections?
+    // Let's just unset the universeId from collections to be safe.
+    const collections = await this.getCollections();
+    for (const col of collections) {
+      if (col.universeId === id) {
+        col.universeId = undefined;
+        await this.updateCollection(col);
+      }
+    }
+    await UNIVERSE_STORE.removeItem(id);
+  }
+
   // ── Collections ─────────────────────────────────────
   async getCollections(): Promise<Collection[]> {
     const cols: Collection[] = [];
@@ -114,6 +162,12 @@ class StorageService {
   }
 
   async deleteCollection(id: string): Promise<void> {
+    const col = await this.getCollection(id);
+    if (col && col.comicIds && col.comicIds.length > 0) {
+      for (const comicId of col.comicIds) {
+        await this.deleteComic(comicId);
+      }
+    }
     await COLLECTION_STORE.removeItem(id);
   }
 

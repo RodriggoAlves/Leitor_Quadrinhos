@@ -58,6 +58,7 @@ export const Home: React.FC = () => {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [expandedRoots, setExpandedRoots] = useState<Record<string, boolean>>({});
   const [collections, setCollections] = useState<import('../types').Collection[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const { isFullscreen, toggleFullscreen } = useFullscreen();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -100,6 +101,7 @@ export const Home: React.FC = () => {
   };
 
   const loadComics = async () => {
+    setIsLoading(true);
     try {
       const allComics = await storage.getAllComics();
       setComics(allComics);
@@ -107,6 +109,8 @@ export const Home: React.FC = () => {
       setCollections(allCols);
     } catch (err: any) {
       setErrorMsg(`Erro ao carregar: ${err.message}`);
+    } finally {
+      setIsLoading(false);
     }
   };
   // Keep ref in sync with latest function (avoids stale closure in event listeners)
@@ -183,7 +187,7 @@ export const Home: React.FC = () => {
           id,
           title: file.name.replace(/\.[^/.]+$/, ''),
           fileName: file.name,
-          series: topic || 'Geral',
+          series: collectionNameToCreate || topic || 'Geral',
           format: /\.(cbr|rar)$/i.test(file.name) ? 'cbr' : 'cbz',
           totalPages: parser.getTotalPages(),
           fileSize: file.size,
@@ -209,6 +213,10 @@ export const Home: React.FC = () => {
     setImportTotal(0);
     setImportCurrent(0);
     await loadComics();
+
+    if (newCollection) {
+      navigate(`/collection/${newCollection.id}`);
+    }
   };
   // Keep ref in sync with latest function (avoids stale closure in event listeners)
   processImportRef.current = processImport;
@@ -333,8 +341,12 @@ export const Home: React.FC = () => {
 
       {/* ── LIBRARY ── */}
       <main className="px-4 md:px-8 pb-24 md:pb-12 mt-20">
-        {comics.length === 0 && !isImporting ? (
-          <div className="flex flex-col items-center justify-center h-[50vh] text-center gap-4">
+        {isLoading ? (
+          <div className="flex justify-center items-center h-[50vh]">
+            <div className="w-8 h-8 border-4 border-[#e50914] border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : comics.length === 0 && !isImporting ? (
+          <div className="flex flex-col items-center justify-center h-[50vh] text-center gap-4 animate-in fade-in duration-500">
             <Library size={48} className="text-gray-700" />
             <h2 className="text-xl font-semibold text-gray-400">Biblioteca vazia</h2>
             <p className="text-gray-600 text-sm">Importe arquivos .cbz ou .cbr para começar</p>
@@ -356,35 +368,37 @@ export const Home: React.FC = () => {
                   {/* Section header */}
                   <div className="flex flex-col md:flex-row md:items-center justify-between mb-3 gap-2">
                     <div
-                      className={`flex items-center gap-2 ${hasSubs ? 'cursor-pointer group' : ''}`}
-                      onClick={() => hasSubs && toggleRoot(root)}
+                      className="flex items-center gap-2 cursor-pointer group w-full"
+                      onClick={() => {
+                        if (matchedCollection) {
+                          navigate(`/collection/${matchedCollection.id}`);
+                        } else if (hasSubs) {
+                          toggleRoot(root);
+                        }
+                      }}
                     >
                       <h2 className="text-base md:text-lg font-bold text-white flex items-center gap-2 group-hover:text-[#e50914] transition-colors">
                         <FolderOpen className="text-[#e50914]" size={24} />
                         {root}
-                        {hasSubs && (
+                        {!matchedCollection && hasSubs && (
                           isExpanded
                             ? <ChevronDown size={18} className="text-gray-400" />
                             : <ChevronRight size={18} className="text-gray-400" />
                         )}
                       </h2>
-                    </div>
-                    
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-gray-500">
-                        {rootData.totalComics.length} quadrinhos
-                      </span>
-                      {matchedCollection && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/collection/${matchedCollection.id}`);
-                          }}
-                          className="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-full font-semibold transition"
-                        >
-                          Abrir Coleção
-                        </button>
-                      )}
+                      
+                      {/* Badge / Indicators */}
+                      <div className="ml-auto flex items-center gap-3">
+                        <span className="text-xs text-gray-500">
+                          {rootData.totalComics.length} quadrinhos
+                        </span>
+                        {matchedCollection && (
+                          <span className="text-[10px] uppercase tracking-wider bg-[#e50914]/20 text-[#e50914] px-2 py-1 rounded-full font-bold">
+                            Coleção
+                          </span>
+                        )}
+                        {matchedCollection && <ChevronRight size={18} className="text-gray-400 group-hover:text-white transition-colors" />}
+                      </div>
                     </div>
                   </div>
 
