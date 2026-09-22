@@ -38,7 +38,7 @@ const UI_HIDE_DELAY = 3500;
 export const Reader: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isFullscreen, isSupported: fsSupported, toggleFullscreen } = useFullscreen();
+  const { isFullscreen, toggleFullscreen } = useFullscreen();
 
   // ── Comic metadata ──
   const [loading, setLoading]     = useState(true);
@@ -609,16 +609,14 @@ export const Reader: React.FC = () => {
           </div>
 
           {/* Fullscreen toggle */}
-          {fsSupported && (
-            <button
-              title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-              onPointerDown={e => { e.stopPropagation(); toggleFullscreen(); }}
-              className="bg-black/60 backdrop-blur-sm text-gray-400 hover:text-white rounded-full transition-colors flex items-center justify-center flex-shrink-0"
-              style={{ width: 36, height: 36 }}
-            >
-              {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
-            </button>
-          )}
+          <button
+            title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+            onPointerDown={e => { e.stopPropagation(); toggleFullscreen(); }}
+            className="bg-black/60 backdrop-blur-sm text-gray-400 hover:text-white rounded-full transition-colors flex items-center justify-center flex-shrink-0"
+            style={{ width: 36, height: 36 }}
+          >
+            {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
+          </button>
         </div>
       </div>
 
