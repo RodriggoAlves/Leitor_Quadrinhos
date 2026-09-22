@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { storage } from '../services/StorageService';
 import { ComicCard } from '../components/ComicCard';
 import type { Collection, Comic } from '../types';
-import { ArrowLeft, GripVertical, Check, X } from 'lucide-react';
+import { ArrowLeft, GripVertical, Check, X, ChevronUp, ChevronDown } from 'lucide-react';
 
 export const CollectionDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -151,6 +151,18 @@ export const CollectionDetail: React.FC = () => {
     setOverIndex(null);
   };
 
+  const moveItem = (index: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === editComics.length - 1) return;
+    
+    const reordered = [...editComics];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(targetIndex, 0, moved);
+    setEditComics(reordered);
+  };
+
   if (!collection) {
     return (
       <div className="min-h-screen bg-[#0f0f0f] text-white flex items-center justify-center">
@@ -270,6 +282,24 @@ export const CollectionDetail: React.FC = () => {
 
               {/* Title */}
               <span className="text-sm truncate flex-1">{comic.title}</span>
+
+              {/* Up/Down buttons */}
+              <div className="flex flex-col gap-1 pr-2">
+                <button
+                  onClick={(e) => { e.stopPropagation(); moveItem(index, 'up'); }}
+                  disabled={index === 0}
+                  className="p-1.5 rounded bg-[#333] hover:bg-[#444] disabled:opacity-30 disabled:hover:bg-[#333] transition-colors"
+                >
+                  <ChevronUp size={16} />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); moveItem(index, 'down'); }}
+                  disabled={index === editComics.length - 1}
+                  className="p-1.5 rounded bg-[#333] hover:bg-[#444] disabled:opacity-30 disabled:hover:bg-[#333] transition-colors"
+                >
+                  <ChevronDown size={16} />
+                </button>
+              </div>
             </div>
           ))}
 

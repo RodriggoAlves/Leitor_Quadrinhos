@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import type { Comic } from '../types';
 import { storage } from '../services/StorageService';
 import { ComicCard } from '../components/ComicCard';
-import { Plus, Search, Download, FolderPlus, ChevronRight, ChevronDown, Library, Trash2 } from 'lucide-react';
+import { Plus, Search, Download, FolderPlus, ChevronRight, ChevronDown, Library, Trash2, Maximize, Minimize } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ComicParser } from '../services/ComicParser';
-
+import { useFullscreen } from '../hooks/useFullscreen';
 
 const SortDropdown = ({ value, onChange }: { value: string, onChange: (v: string) => void }) => {
   const [open, setOpen] = React.useState(false);
@@ -63,6 +63,7 @@ export const Home: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [expandedRoots, setExpandedRoots] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
+  const { isFullscreen, toggleFullscreen } = useFullscreen();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   // Refs so event listeners in useEffect always see the latest function versions
@@ -129,6 +130,22 @@ export const Home: React.FC = () => {
     setImportTotal(validFiles.length);
     setErrorMsg(null);
 
+    let collectionName = '';
+    let newCollection: import('../types').Collection | null = null;
+
+    if (isFolder && validFiles.length > 0) {
+      const firstPath = validFiles[0].webkitRelativePath || '';
+      const defaultName = firstPath.split('/')[0] || 'Nova Pasta';
+      if (window.confirm(`Deseja criar uma coleção para os arquivos de "${defaultName}"?`)) {
+        collectionName = defaultName;
+        try {
+          newCollection = await storage.createCollection(collectionName);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+
     for (let i = 0; i < validFiles.length; i++) {
       const file = validFiles[i];
       setImportCurrent(i + 1);
@@ -174,6 +191,10 @@ export const Home: React.FC = () => {
 
         await storage.saveComic(comic);
         await storage.saveComicFile(id, file);
+
+        if (newCollection) {
+          await storage.addComicToCollection(newCollection.id, id);
+        }
       } catch (err: any) {
         console.error(`Erro em ${file.name}:`, err);
       }
@@ -224,8 +245,6 @@ export const Home: React.FC = () => {
     return a.localeCompare(b);
   });
 
-  const featuredComic = comics.find(c => (c.progress ?? 0) > 0 && (c.progress ?? 0) < 100) || comics[0];
-
   return (
     <div className="min-h-screen bg-[#0f0f0f] text-white w-full max-w-[100vw] overflow-x-hidden">
       {/* ── NAVBAR ── */}
@@ -250,6 +269,14 @@ export const Home: React.FC = () => {
 
         {/* Right actions */}
         <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            title="Tela cheia"
+            onClick={toggleFullscreen}
+            className="cursor-pointer bg-white/8 hover:bg-white/20 transition p-2 rounded-full text-gray-400 hover:text-white"
+          >
+            {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
+          </button>
+          
           <SortDropdown value={sortOrder} onChange={(val) => setSortOrder(val as any)} />
 
           <label className="cursor-pointer bg-white/10 hover:bg-white/20 transition px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5">
@@ -285,59 +312,9 @@ export const Home: React.FC = () => {
         </div>
       </header>
 
-      {/* ── HERO (last read / featured) ── */}
-      {featuredComic && !searchQuery && (
-        <div
-          className="relative w-full pt-16 overflow-hidden"
-          style={{ height: 'min(55vh, 440px)' }}
-        >
-          {/* Blurred bg */}
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${featuredComic.coverImage})`, filter: 'blur(28px) brightness(0.35)', transform: 'scale(1.05)' }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0f0f0f] via-[#0f0f0f]/30 to-transparent" />
-
-          {/* Content */}
-          <div className="relative z-10 h-full flex flex-col justify-end px-5 md:px-12 pb-8">
-            <div className="flex items-end gap-4">
-              {/* Cover */}
-              <img
-                src={featuredComic.coverImage}
-                alt={featuredComic.title}
-                className="w-20 md:w-40 rounded-xl shadow-2xl flex-shrink-0 ring-1 ring-white/10"
-              />
-              <div className="flex-1 min-w-0 pb-1">
-                <p className="text-xs text-[#e50914] font-bold uppercase tracking-widest mb-1">
-                  {featuredComic.progress && featuredComic.progress > 0 ? '▶ Em leitura' : 'Sua biblioteca'}
-                </p>
-                <h2 className="text-xl md:text-4xl font-black leading-tight drop-shadow-lg mb-3 line-clamp-2">
-                  {featuredComic.title}
-                </h2>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => navigate(`/read/${featuredComic.id}`)}
-                    className="flex items-center gap-1.5 bg-white text-black px-4 py-2 rounded-full text-xs md:text-sm font-bold hover:bg-gray-200 transition"
-                  >
-                    <svg className="w-3 h-3 md:w-4 md:h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                    {featuredComic.progress && featuredComic.progress > 0 ? 'Continuar' : 'Ler Agora'}
-                  </button>
-                  <button
-                    onClick={() => navigate(`/details/${featuredComic.id}`)}
-                    className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 backdrop-blur px-4 py-2 rounded-full text-xs md:text-sm font-semibold transition"
-                  >
-                    + Detalhes
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── IMPORT PROGRESS BAR ── */}
       {isImporting && (
-        <div className={`px-6 py-3 bg-[#1a1a1a] border-b border-white/5 ${!(featuredComic && !searchQuery) ? 'mt-14' : ''}`}>
+        <div className="px-6 py-3 bg-[#1a1a1a] border-b border-white/5 mt-14">
           <div className="flex items-center justify-between mb-1.5 text-xs text-gray-400">
             <span>Importando {importCurrent}/{importTotal}: <span className="text-white font-medium truncate max-w-xs inline-block align-middle">{importProgress}</span></span>
             <span>{Math.round((importCurrent / importTotal) * 100)}%</span>
@@ -356,7 +333,7 @@ export const Home: React.FC = () => {
       )}
 
       {/* ── LIBRARY ── */}
-      <main className={`px-4 md:px-8 pb-24 md:pb-12 ${featuredComic && !searchQuery ? 'mt-4' : 'mt-20'}`}>
+      <main className="px-4 md:px-8 pb-24 md:pb-12 mt-20">
         {comics.length === 0 && !isImporting ? (
           <div className="flex flex-col items-center justify-center h-[50vh] text-center gap-4">
             <Library size={48} className="text-gray-700" />
