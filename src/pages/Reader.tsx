@@ -2,7 +2,9 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { storage } from '../services/StorageService';
 import { ComicParser } from '../services/ComicParser';
-import { ArrowLeft, ChevronLeft, ChevronRight, BookOpen, AlignJustify, LayoutTemplate } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, BookOpen, AlignJustify, LayoutTemplate, Maximize, Minimize } from 'lucide-react';
+import { useFullscreen } from '../hooks/useFullscreen';
+import { checkAchievements } from '../data/achievements';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // READER — Architecture notes
@@ -36,6 +38,7 @@ const UI_HIDE_DELAY = 3500;
 export const Reader: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isFullscreen, isSupported: fsSupported, toggleFullscreen } = useFullscreen();
 
   // ── Comic metadata ──
   const [loading, setLoading]     = useState(true);
@@ -101,11 +104,28 @@ export const Reader: React.FC = () => {
   // NAVIGATION CALLBACKS
   // ══════════════════════════════════════════════════════
   useEffect(() => {
-    const go = (p: number) => {
+    const go = async (p: number) => {
       const c = Math.max(0, Math.min(p, L.current.total - 1));
       setPage(c);
       setPan({ x: 0, y: 0 }); // reset pan, keep zoom
-      if (id && L.current.total > 0) storage.saveProgress(id, c, L.current.total);
+      if (id && L.current.total > 0) {
+        storage.saveProgress(id, c, L.current.total);
+        // Record pages read (maxPageReached — avoids double-counting)
+        storage.recordPagesRead(id, c + 1); // +1 because page is 0-indexed
+        // Check completion: if user reached the last page
+        if (c >= L.current.total - 1) {
+          const isNew = await storage.markComicCompleted(id);
+          if (isNew) {
+            // Check achievements after new completion
+            const [stats, achievements] = await Promise.all([
+              storage.getStats(),
+              storage.getAchievements(),
+            ]);
+            const { achievements: updated } = checkAchievements(stats, achievements);
+            storage.saveAchievements(updated);
+          }
+        }
+      }
     };
     const step = mode === 'double' ? 2 : 1;
     goFn.current   = go;
@@ -587,6 +607,18 @@ export const Reader: React.FC = () => {
               </button>
             ))}
           </div>
+
+          {/* Fullscreen toggle */}
+          {fsSupported && (
+            <button
+              title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+              onPointerDown={e => { e.stopPropagation(); toggleFullscreen(); }}
+              className="bg-black/60 backdrop-blur-sm text-gray-400 hover:text-white rounded-full transition-colors flex items-center justify-center flex-shrink-0"
+              style={{ width: 36, height: 36 }}
+            >
+              {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
+            </button>
+          )}
         </div>
       </div>
 

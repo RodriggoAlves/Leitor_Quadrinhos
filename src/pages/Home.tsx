@@ -337,7 +337,7 @@ export const Home: React.FC = () => {
 
       {/* ── IMPORT PROGRESS BAR ── */}
       {isImporting && (
-        <div className="px-6 py-3 bg-[#1a1a1a] border-b border-white/5">
+        <div className={`px-6 py-3 bg-[#1a1a1a] border-b border-white/5 ${!(featuredComic && !searchQuery) ? 'mt-14' : ''}`}>
           <div className="flex items-center justify-between mb-1.5 text-xs text-gray-400">
             <span>Importando {importCurrent}/{importTotal}: <span className="text-white font-medium truncate max-w-xs inline-block align-middle">{importProgress}</span></span>
             <span>{Math.round((importCurrent / importTotal) * 100)}%</span>

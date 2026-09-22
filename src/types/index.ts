@@ -20,3 +20,23 @@ export interface ReadingProgress {
   progress: number;
   lastRead: number;
 }
+
+export interface Collection {
+  id: string;
+  name: string;
+  comicIds: string[];   // ordered array — also defines display order
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ReadingStats {
+  totalReadComics: number;
+  totalPagesRead: number;
+  completedComicIds: string[];  // prevents double-counting
+  updatedAt: number;
+}
+
+export interface Achievement {
+  id: string;
+  unlockedAt?: number;          // undefined = locked
+}

@@ -14,6 +14,53 @@ export const Details: React.FC = () => {
   const [deleting, setDeleting] = useState(false);
   const [isEditingTopic, setIsEditingTopic] = useState(false);
   const [editTopicValue, setEditTopicValue] = useState('');
+  
+  // ── Collections Modal State ──
+  const [showCollections, setShowCollections] = useState(false);
+  const [allCollections, setAllCollections] = useState<import('../types').Collection[]>([]);
+
+  const loadCollections = async () => {
+    try {
+      const cols = await storage.getCollections();
+      setAllCollections(cols);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (showCollections) {
+      loadCollections();
+    }
+  }, [showCollections]);
+
+  const handleToggleCollection = async (collectionId: string) => {
+    if (!comic) return;
+    const col = allCollections.find(c => c.id === collectionId);
+    if (!col) return;
+
+    if (col.comicIds.includes(comic.id)) {
+      await storage.removeComicFromCollection(collectionId, comic.id);
+    } else {
+      await storage.addComicToCollection(collectionId, comic.id);
+    }
+    await loadCollections();
+  };
+
+  const handleCreateCollection = async () => {
+    const name = window.prompt('Nome da nova coleção:');
+    if (!name || !name.trim()) return;
+    try {
+      const newCol = await storage.createCollection(name.trim());
+      if (comic) {
+        await storage.addComicToCollection(newCol.id, comic.id);
+      }
+      await loadCollections();
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao criar coleção.');
+    }
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -127,6 +174,13 @@ export const Details: React.FC = () => {
               >
                 <Play size={16} fill="currentColor" />
                 {prog > 0 && prog < 100 ? 'Continuar' : 'Ler Agora'}
+              </button>
+
+              <button
+                onClick={() => setShowCollections(true)}
+                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-full text-sm font-semibold transition"
+              >
+                + Coleção
               </button>
 
               <button
@@ -278,6 +332,49 @@ export const Details: React.FC = () => {
         {/* File info */}
         <p className="text-xs text-gray-700 font-mono mt-10 break-all">{comic.fileName}</p>
       </div>
+
+      {/* ── Collections Modal ── */}
+      {showCollections && (
+        <div className="fixed inset-0 z-[100] flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCollections(false)} />
+          <div className="relative bg-[#1a1a1a] rounded-t-2xl max-h-[80vh] flex flex-col w-full pb-safe pt-2 border-t border-white/10 animate-in slide-in-from-bottom-full duration-300">
+            <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-4" />
+            <h2 className="text-lg font-bold px-6 mb-4">Adicionar à Coleção</h2>
+            
+            <div className="flex-1 overflow-y-auto px-4 pb-8 space-y-2">
+              <button
+                onClick={handleCreateCollection}
+                className="w-full bg-[#2a2a2a] hover:bg-[#333] transition-colors rounded-xl p-4 flex items-center gap-3 text-left"
+              >
+                <div className="w-8 h-8 rounded-full bg-[#e50914] flex items-center justify-center text-white shrink-0">
+                  <Play size={14} className="rotate-90" /> {/* Simulating Plus icon since I don't want to add imports if Plus is missing */}
+                </div>
+                <span className="font-semibold text-[#e50914]">Criar nova coleção</span>
+              </button>
+
+              {allCollections.map(col => {
+                const inCol = col.comicIds.includes(comic.id);
+                return (
+                  <button
+                    key={col.id}
+                    onClick={() => handleToggleCollection(col.id)}
+                    className="w-full bg-[#2a2a2a] hover:bg-[#333] transition-colors rounded-xl p-4 flex items-center justify-between text-left"
+                  >
+                    <span className="font-semibold text-white">{col.name}</span>
+                    {inCol ? (
+                      <div className="w-6 h-6 rounded-full bg-[#e50914] flex items-center justify-center">
+                        <Check size={14} className="text-white" />
+                      </div>
+                    ) : (
+                      <div className="w-6 h-6 rounded-full border-2 border-gray-600" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
