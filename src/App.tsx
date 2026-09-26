@@ -11,6 +11,7 @@ import { Library, Plus, FolderPlus, Trash2, FolderOpen, Trophy, User } from 'luc
 import { storage } from './services/StorageService';
 
 import { ConfirmDialog } from './components/Dialogs';
+import { GlobalImporter } from './components/GlobalImporter';
 
 // ── Global Bottom Nav (hidden in Reader) ──
 const BottomNav: React.FC = () => {
@@ -111,6 +112,7 @@ function App() {
 
   return (
     <Router>
+      <GlobalImporter />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/read/:id" element={<Reader />} />

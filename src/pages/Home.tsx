@@ -4,7 +4,6 @@ import { storage } from '../services/StorageService';
 import { ComicCard } from '../components/ComicCard';
 import { Plus, Search, Download, FolderPlus, ChevronRight, ChevronDown, Library, Trash2, Maximize, Minimize, FolderOpen } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ComicParser } from '../services/ComicParser';
 import { useFullscreen } from '../hooks/useFullscreen';
 import { ConfirmDialog } from '../components/Dialogs';
 
@@ -46,15 +45,9 @@ const SortDropdown = ({ value, onChange }: { value: string, onChange: (v: string
 
 export const Home: React.FC = () => {
   const [comics, setComics] = useState<Comic[]>([]);
-  const [isImporting, setIsImporting] = useState(false);
-  const [importProgress, setImportProgress] = useState('');
-  const [importTotal, setImportTotal] = useState(0);
-  const [importCurrent, setImportCurrent] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'recent' | 'az' | 'za'>('az');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [pendingFolderImport, setPendingFolderImport] = useState<{ files: File[], defaultName: string } | null>(null);
-  const [collectionNameInput, setCollectionNameInput] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [expandedRoots, setExpandedRoots] = useState<Record<string, boolean>>({});
   const [collections, setCollections] = useState<import('../types').Collection[]>([]);
@@ -68,29 +61,14 @@ export const Home: React.FC = () => {
   const { isFullscreen, toggleFullscreen } = useFullscreen();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
-  // Refs so event listeners in useEffect always see the latest function versions
-  const processImportRef = React.useRef<((files: FileList | File[], isFolder?: boolean) => void) | null>(null);
-  const loadComicsRef = React.useRef<(() => void) | null>(null);
-
   useEffect(() => { loadComics(); }, []);
 
-  // Wire up BottomNav custom events — use refs to avoid stale closures
+  // Listen to library-cleared event to reload
   useEffect(() => {
-    const onClear = () => loadComicsRef.current?.();
-    const onImportFiles = (e: any) => e.detail?.files && processImportRef.current?.(e.detail.files, false);
-    const onImportFolder = (e: any) => e.detail?.files && processImportRef.current?.(e.detail.files, true);
-
+    const onClear = () => loadComics();
     window.addEventListener('library-cleared', onClear);
-    window.addEventListener('import-files', onImportFiles);
-    window.addEventListener('import-folder', onImportFolder);
-
-    return () => {
-      window.removeEventListener('library-cleared', onClear);
-      window.removeEventListener('import-files', onImportFiles);
-      window.removeEventListener('import-folder', onImportFolder);
-    };
-  }, []); // runs once — but uses refs which always point to latest functions
-
+    return () => window.removeEventListener('library-cleared', onClear);
+  }, []);
 
   useEffect(() => {
     const handler = (e: Event) => { e.preventDefault(); setDeferredPrompt(e); };
@@ -123,120 +101,6 @@ export const Home: React.FC = () => {
       setIsLoading(false);
     }
   };
-  // Keep ref in sync with latest function (avoids stale closure in event listeners)
-  loadComicsRef.current = loadComics;
-
-  const processImport = async (files: FileList | File[], isFolder = false) => {
-    if (!files || files.length === 0) return;
-
-    const validFiles = Array.from(files).filter(f =>
-      /\.(cbz|cbr|zip|rar)$/i.test(f.name)
-    );
-
-    if (validFiles.length === 0) {
-      setErrorMsg('Nenhum arquivo válido (.cbz, .cbr, .zip, .rar)');
-      return;
-    }
-
-    if (isFolder && validFiles.length > 0) {
-      const firstPath = validFiles[0].webkitRelativePath || '';
-      const defaultName = firstPath.split('/')[0] || 'Nova Pasta';
-      setCollectionNameInput(defaultName);
-      setPendingFolderImport({ files: validFiles, defaultName });
-      return; // wait for user choice
-    }
-
-    // Default import (no collection)
-    runImport(validFiles, null);
-  };
-
-  const runImport = async (validFiles: File[], collectionNameToCreate: string | null) => {
-    setIsImporting(true);
-    setImportTotal(validFiles.length);
-    setErrorMsg(null);
-
-    let newCollection: import('../types').Collection | null = null;
-    if (collectionNameToCreate) {
-      try {
-        newCollection = await storage.createCollection(collectionNameToCreate);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    for (let i = 0; i < validFiles.length; i++) {
-      const file = validFiles[i];
-      setImportCurrent(i + 1);
-      setImportProgress(file.name);
-
-      try {
-        let topic = '';
-        if (file.webkitRelativePath) {
-          const parts = file.webkitRelativePath.split('/');
-          if (parts.length > 2) {
-            topic = parts.slice(1, -1).join('/');
-          } else if (parts.length === 2) {
-            topic = parts[0];
-          }
-        }
-
-        const id = crypto.randomUUID();
-        const parser = new ComicParser(file, file.name);
-        await parser.load();
-
-        const coverUrl = await parser.getCoverUrl();
-        const res = await fetch(coverUrl);
-        const coverBlob = await res.blob();
-        const coverBase64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(coverBlob);
-        });
-
-        const comic: Comic = {
-          id,
-          title: file.name.replace(/\.[^/.]+$/, ''),
-          fileName: file.name,
-          series: collectionNameToCreate || topic || 'Geral',
-          format: /\.(cbr|rar)$/i.test(file.name) ? 'cbr' : 'cbz',
-          totalPages: parser.getTotalPages(),
-          fileSize: file.size,
-          progress: 0,
-          currentPage: 0,
-          lastRead: Date.now(),
-          coverImage: coverBase64
-        };
-
-        await storage.saveComic(comic);
-        await storage.saveComicFile(id, file);
-
-        if (newCollection) {
-          await storage.addComicToCollection(newCollection.id, id);
-        }
-      } catch (err: any) {
-        console.error(`Erro em ${file.name}:`, err);
-      }
-    }
-
-    setIsImporting(false);
-    setImportProgress('');
-    setImportTotal(0);
-    setImportCurrent(0);
-    await loadComics();
-
-    if (newCollection) {
-      navigate(`/collection/${newCollection.id}`);
-    }
-  };
-  // Keep ref in sync with latest function (avoids stale closure in event listeners)
-  processImportRef.current = processImport;
-
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>, isFolder = false) => {
-    if (e.target.files) processImport(e.target.files, isFolder);
-    e.target.value = '';
-  };
-
-
 
   const toggleRoot = (root: string) =>
     setExpandedRoots(prev => ({ ...prev, [root]: !prev[root] }));
@@ -303,13 +167,19 @@ export const Home: React.FC = () => {
 
           <label className="cursor-pointer bg-white/10 hover:bg-white/20 transition px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5">
             <Plus size={13} /> Arquivos
-            <input type="file" accept=".cbz,.zip,.cbr,.rar" multiple className="hidden" onChange={(e) => handleImport(e, false)} disabled={isImporting} />
+            <input type="file" accept=".cbz,.zip,.cbr,.rar" multiple className="hidden" onChange={(e) => {
+              if (e.target.files) window.dispatchEvent(new CustomEvent('import-files', { detail: { files: Array.from(e.target.files) } }));
+              e.target.value = '';
+            }} />
           </label>
 
           <label className="cursor-pointer bg-[#e50914] hover:bg-red-700 transition px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5">
             <FolderPlus size={13} /> Pasta
             {/* @ts-ignore */}
-            <input type="file" webkitdirectory="" directory="" multiple className="hidden" onChange={(e) => handleImport(e, true)} disabled={isImporting} />
+            <input type="file" webkitdirectory="" directory="" multiple className="hidden" onChange={(e) => {
+              if (e.target.files) window.dispatchEvent(new CustomEvent('import-folder', { detail: { files: Array.from(e.target.files) } }));
+              e.target.value = '';
+            }} />
           </label>
 
           {deferredPrompt && (
@@ -329,19 +199,6 @@ export const Home: React.FC = () => {
         </div>
       </header>
 
-      {/* ── IMPORT PROGRESS BAR ── */}
-      {isImporting && (
-        <div className="px-6 py-3 bg-[#1a1a1a] border-b border-white/5 mt-14">
-          <div className="flex items-center justify-between mb-1.5 text-xs text-gray-400">
-            <span>Importando {importCurrent}/{importTotal}: <span className="text-white font-medium truncate max-w-xs inline-block align-middle">{importProgress}</span></span>
-            <span>{Math.round((importCurrent / importTotal) * 100)}%</span>
-          </div>
-          <div className="h-1 bg-gray-700 rounded-full overflow-hidden">
-            <div className="h-full bg-[#e50914] transition-all duration-300 rounded-full" style={{ width: `${(importCurrent / importTotal) * 100}%` }} />
-          </div>
-        </div>
-      )}
-
       {/* ── ERROR ── */}
       {errorMsg && (
         <div className="mx-4 md:mx-8 mt-4 p-3 bg-red-900/40 border border-red-500/40 rounded-lg text-red-300 text-sm">
@@ -355,14 +212,17 @@ export const Home: React.FC = () => {
           <div className="flex justify-center items-center h-[50vh]">
             <div className="w-8 h-8 border-4 border-[#e50914] border-t-transparent rounded-full animate-spin"></div>
           </div>
-        ) : comics.length === 0 && !isImporting ? (
+        ) : comics.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[50vh] text-center gap-4 animate-in fade-in duration-500">
             <Library size={48} className="text-gray-700" />
             <h2 className="text-xl font-semibold text-gray-400">Biblioteca vazia</h2>
             <p className="text-gray-600 text-sm">Importe arquivos .cbz ou .cbr para começar</p>
             <label className="cursor-pointer bg-[#e50914] hover:bg-red-700 transition px-6 py-2.5 rounded-full text-sm font-bold mt-2">
               + Importar HQs
-              <input type="file" accept=".cbz,.zip,.cbr,.rar" multiple className="hidden" onChange={(e) => handleImport(e, false)} />
+              <input type="file" accept=".cbz,.zip,.cbr,.rar" multiple className="hidden" onChange={(e) => {
+                if (e.target.files) window.dispatchEvent(new CustomEvent('import-files', { detail: { files: Array.from(e.target.files) } }));
+                e.target.value = '';
+              }} />
             </label>
           </div>
         ) : (
@@ -451,55 +311,6 @@ export const Home: React.FC = () => {
         )}
       </main>
 
-      {/* ── IMPORT FOLDER MODAL ── */}
-      {pendingFolderImport && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
-          <div className="relative bg-[#1a1a1a] rounded-2xl w-full max-w-md p-6 border border-white/10 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-            <h3 className="text-xl font-bold mb-2">Criar Coleção?</h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Você está importando quadrinhos de uma pasta. Deseja agrupá-los automaticamente em uma Coleção?
-            </p>
-            
-            <div className="mb-6">
-              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">
-                Nome da Coleção
-              </label>
-              <input
-                type="text"
-                value={collectionNameInput}
-                onChange={(e) => setCollectionNameInput(e.target.value)}
-                className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#e50914] transition-colors"
-                placeholder="Ex: Marvel, Batman, etc..."
-              />
-            </div>
-
-            <div className="flex items-center gap-3 justify-end">
-              <button
-                onClick={() => {
-                  const files = pendingFolderImport.files;
-                  setPendingFolderImport(null);
-                  runImport(files, null);
-                }}
-                className="px-5 py-2.5 rounded-xl font-semibold text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                Não
-              </button>
-              <button
-                onClick={() => {
-                  const files = pendingFolderImport.files;
-                  setPendingFolderImport(null);
-                  runImport(files, collectionNameInput.trim() || 'Nova Coleção');
-                }}
-                className="px-5 py-2.5 rounded-xl font-bold bg-[#e50914] hover:bg-red-700 text-white transition-colors"
-              >
-                Sim, Criar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── CLEAR LIBRARY MODAL ── */}
       <ConfirmDialog
         isOpen={showClearConfirm}
@@ -534,6 +345,13 @@ export const Home: React.FC = () => {
               onClick={async () => {
                 await storage.saveUserProfile({ name: welcomeName.trim() });
                 setShowWelcome(false);
+                try {
+                  if (document.documentElement.requestFullscreen) {
+                    await document.documentElement.requestFullscreen();
+                  }
+                } catch (e) {
+                  console.error(e);
+                }
               }}
               className="w-full bg-[#e50914] text-white font-bold py-3 rounded-xl disabled:opacity-50 transition-colors"
             >
