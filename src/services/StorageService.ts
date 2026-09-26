@@ -252,6 +252,11 @@ class StorageService {
   async saveUserProfile(profile: import('../types').UserProfile): Promise<void> {
     await STATS_STORE.setItem('__user_profile__', profile);
   }
+
+  // ── Reset ───────────────────────────────────────────
+  async resetProfileAndStats(): Promise<void> {
+    await STATS_STORE.clear();
+  }
 }
 
 export const storage = new StorageService();

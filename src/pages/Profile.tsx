@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { storage } from '../services/StorageService';
 import type { UserProfile, ReadingStats } from '../types';
-import { ArrowLeft, User, CheckCircle2, Edit3, BookOpen, Layers, Trophy } from 'lucide-react';
+import { ArrowLeft, User, CheckCircle2, Edit3, BookOpen, Layers, Trophy, Trash2 } from 'lucide-react';
 import { ACHIEVEMENTS } from '../data/achievements';
+import { ConfirmDialog } from '../components/Dialogs';
 
 const PUBLISHERS = [
   { id: 'marvel', name: 'Marvel', img: '/publishers/marvel.jpg' },
@@ -28,6 +29,7 @@ export const Profile: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -254,9 +256,34 @@ export const Profile: React.FC = () => {
               {saving ? <CheckCircle2 size={24} /> : null}
               {saving ? 'Salvo!' : 'Salvar Perfil'}
             </button>
+
+            {/* Reset Profile button */}
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              className="mt-2 w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 bg-transparent text-gray-500 hover:text-red-500 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all"
+            >
+              <Trash2 size={16} />
+              Resetar Perfil e Conquistas
+            </button>
           </div>
         </div>
       )}
+
+      {/* ── RESET PROFILE DIALOG ── */}
+      <ConfirmDialog
+        isOpen={showResetConfirm}
+        title="Resetar Perfil e Conquistas"
+        message="Tem certeza que deseja apagar seu perfil, heróis favoritos, nível e TODOS os troféus desbloqueados? Suas coleções e HQs não serão apagadas, mas seu progresso de leitura voltará a 0."
+        confirmText="Sim, Resetar Tudo"
+        isDanger={true}
+        onConfirm={async () => {
+          setShowResetConfirm(false);
+          await storage.resetProfileAndStats();
+          // Reload the app to the home page so the Welcome Modal triggers
+          window.location.href = '/';
+        }}
+        onCancel={() => setShowResetConfirm(false)}
+      />
     </div>
   );
 };
