@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Comic } from '../types';
 import { storage } from '../services/StorageService';
-import { ArrowLeft, Play, Trash2, Edit3, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Play, Trash2, Edit3, Check, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { ConfirmDialog, PromptDialog } from '../components/Dialogs';
 
 export const Details: React.FC = () => {
@@ -112,6 +112,23 @@ export const Details: React.FC = () => {
     setIsEditingTopic(false);
   };
 
+  const handleToggleReadStatus = async () => {
+    if (!comic) return;
+    const isFinished = (comic.currentPage >= comic.totalPages - 1) && comic.totalPages > 0;
+    
+    let updated;
+    if (isFinished) {
+      updated = { ...comic, currentPage: 0, progress: 0 };
+    } else {
+      updated = { ...comic, currentPage: comic.totalPages - 1, progress: 100 };
+      await storage.markComicCompleted(comic.id);
+    }
+    
+    await storage.saveComic(updated);
+    setComic(updated);
+    setSiblings(prev => prev.map(c => c.id === comic.id ? updated : c));
+  };
+
   if (loading || !comic) {
     return (
       <div className="h-screen bg-[#0f0f0f] flex items-center justify-center text-gray-400">
@@ -179,6 +196,14 @@ export const Details: React.FC = () => {
               >
                 <Play size={16} fill="currentColor" />
                 {prog > 0 && prog < 100 ? 'Continuar' : 'Ler Agora'}
+              </button>
+
+              <button
+                onClick={handleToggleReadStatus}
+                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-full text-sm font-semibold transition"
+              >
+                <CheckCircle2 size={15} />
+                {prog >= 100 ? 'Marcar como não lido' : 'Marcar como lido'}
               </button>
 
               <button
@@ -318,6 +343,29 @@ export const Details: React.FC = () => {
                         {p >= 100 ? ' · ✓ Concluído' : ''}
                       </p>
                     </div>
+
+                    {/* Check button */}
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const isFinished = (c.currentPage >= c.totalPages - 1) && c.totalPages > 0;
+                        let updated;
+                        if (isFinished) {
+                          updated = { ...c, currentPage: 0, progress: 0 };
+                        } else {
+                          updated = { ...c, currentPage: c.totalPages - 1, progress: 100 };
+                          await storage.markComicCompleted(c.id);
+                        }
+                        await storage.saveComic(updated);
+                        if (isCurrent) setComic(updated);
+                        setSiblings(prev => prev.map(item => item.id === c.id ? updated : item));
+                      }}
+                      className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition mr-1
+                        ${p >= 100 ? 'bg-green-500/20 text-green-500 hover:bg-green-500/30' : 'bg-transparent text-gray-500 hover:bg-white/10 hover:text-white'}`}
+                      title={p >= 100 ? 'Marcar como não lido' : 'Marcar como lido'}
+                    >
+                      <CheckCircle2 size={18} />
+                    </button>
 
                     {/* Play button */}
                     <button

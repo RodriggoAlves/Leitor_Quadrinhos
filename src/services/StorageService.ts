@@ -243,6 +243,15 @@ class StorageService {
   async saveAchievements(achievements: Achievement[]): Promise<void> {
     await STATS_STORE.setItem(ACHIEVEMENTS_KEY, achievements);
   }
+
+  // ── Profile ─────────────────────────────────────────
+  async getUserProfile(): Promise<import('../types').UserProfile | null> {
+    return await STATS_STORE.getItem<import('../types').UserProfile>('__user_profile__');
+  }
+
+  async saveUserProfile(profile: import('../types').UserProfile): Promise<void> {
+    await STATS_STORE.setItem('__user_profile__', profile);
+  }
 }
 
 export const storage = new StorageService();

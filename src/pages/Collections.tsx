@@ -188,7 +188,7 @@ export const Collections: React.FC = () => {
                     {isExpanded ? <ChevronDown size={16} className="text-gray-500" /> : <ChevronRight size={16} className="text-gray-500" />}
                   </div>
 
-                  <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 transition-opacity">
                     <button
                       onClick={(e) => { e.stopPropagation(); setCreatePrompt({ targetUniId: uni.id }); setExpandedUniverses(prev => ({ ...prev, [uni.id]: true })); }}
                       className="p-1.5 rounded-full hover:bg-green-500/20 text-gray-400 hover:text-green-400 transition-colors"
@@ -230,7 +230,7 @@ export const Collections: React.FC = () => {
                           <p className="text-sm text-white font-medium truncate">{col.name}</p>
                           <p className="text-xs text-gray-400">{col.comicIds.length} itens</p>
                         </div>
-                        <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1 transition-opacity">
                           <button
                             onClick={(e) => { e.stopPropagation(); setMoveToUniversePrompt({ col }); }}
                             className="p-1.5 rounded-full hover:bg-blue-500/20 text-gray-400 hover:text-blue-400 transition-colors"
@@ -282,7 +282,7 @@ export const Collections: React.FC = () => {
                   </p>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-1 mt-2 md:mt-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 mt-2 md:mt-0 transition-opacity">
                     {universes.length > 0 && (
                       <button
                         onClick={(e) => { e.stopPropagation(); setMoveToUniversePrompt({ col }); }}
@@ -318,7 +318,7 @@ export const Collections: React.FC = () => {
       )}
 
       {/* Fixed Create Button */}
-      <div className="fixed bottom-24 right-4 md:bottom-8 md:right-8 z-40">
+      <div className="fixed bottom-[110px] right-4 md:bottom-8 md:right-8 z-40">
         <button
           onClick={() => setCreatePrompt({})}
           className="w-14 h-14 bg-[#e50914] text-white rounded-full flex items-center justify-center shadow-lg shadow-red-900/30 hover:scale-105 active:scale-95 transition-transform"

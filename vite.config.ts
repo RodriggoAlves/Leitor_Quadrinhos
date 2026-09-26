@@ -16,7 +16,7 @@ export default defineConfig({
         description: 'Leitor de quadrinhos local offline',
         theme_color: '#141414',
         background_color: '#141414',
-        display: 'standalone',
+        display: 'fullscreen',
         icons: [
           {
             src: 'pwa-192x192.png',

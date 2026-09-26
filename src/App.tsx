@@ -6,7 +6,8 @@ import { Details } from './pages/Details';
 import { Collections } from './pages/Collections';
 import { CollectionDetail } from './pages/CollectionDetail';
 import { Achievements } from './pages/Achievements';
-import { Library, Plus, FolderPlus, Trash2, FolderOpen, Trophy } from 'lucide-react';
+import { Profile } from './pages/Profile';
+import { Library, Plus, FolderPlus, Trash2, FolderOpen, Trophy, User } from 'lucide-react';
 import { storage } from './services/StorageService';
 
 import { ConfirmDialog } from './components/Dialogs';
@@ -92,6 +93,11 @@ const BottomNav: React.FC = () => {
           <span className="text-[9px] font-medium">Troféus</span>
         </button>
 
+        <button onClick={() => navigate('/profile')} className={`flex flex-col items-center gap-1 min-w-[50px] transition-colors ${location.pathname === '/profile' ? 'text-[#e50914]' : 'text-gray-500 hover:text-white'}`}>
+          <User size={22} />
+          <span className="text-[9px] font-medium">Perfil</span>
+        </button>
+
         <button onClick={() => setShowClearConfirm(true)} className="flex flex-col items-center gap-1 min-w-[50px] text-gray-600 hover:text-red-500 transition-colors">
           <Trash2 size={22} />
           <span className="text-[9px] font-medium">Limpar</span>
@@ -112,6 +118,7 @@ function App() {
         <Route path="/collections" element={<Collections />} />
         <Route path="/collection/:id" element={<CollectionDetail />} />
         <Route path="/achievements" element={<Achievements />} />
+        <Route path="/profile" element={<Profile />} />
       </Routes>
       <BottomNav />
     </Router>

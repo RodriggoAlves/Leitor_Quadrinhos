@@ -47,3 +47,9 @@ export interface Achievement {
   id: string;
   unlockedAt?: number;          // undefined = locked
 }
+
+export interface UserProfile {
+  name: string;
+  favoritePublisher?: string; // id of publisher
+  favoriteHero?: string; // id or name of hero
+}

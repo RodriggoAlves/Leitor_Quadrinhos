@@ -59,6 +59,11 @@ export const Home: React.FC = () => {
   const [expandedRoots, setExpandedRoots] = useState<Record<string, boolean>>({});
   const [collections, setCollections] = useState<import('../types').Collection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Welcome profile
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeName, setWelcomeName] = useState('');
+
   const navigate = useNavigate();
   const { isFullscreen, toggleFullscreen } = useFullscreen();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -103,6 +108,11 @@ export const Home: React.FC = () => {
   const loadComics = async () => {
     setIsLoading(true);
     try {
+      const p = await storage.getUserProfile();
+      if (!p) {
+        setShowWelcome(true);
+      }
+      
       const allComics = await storage.getAllComics();
       setComics(allComics);
       const allCols = await storage.getCollections();
@@ -504,6 +514,34 @@ export const Home: React.FC = () => {
         }}
         onCancel={() => setShowClearConfirm(false)}
       />
+
+      {/* ── WELCOME MODAL ── */}
+      {showWelcome && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+          <div className="relative bg-[#1a1a1a] rounded-2xl w-full max-w-sm p-6 border border-white/10 shadow-2xl animate-in fade-in zoom-in-95 duration-300 flex flex-col items-center text-center">
+            <h2 className="text-2xl font-black mb-2 text-white">Bem-vindo(a)!</h2>
+            <p className="text-sm text-gray-400 mb-6">Como gostaria de ser chamado?</p>
+            <input
+              type="text"
+              value={welcomeName}
+              onChange={e => setWelcomeName(e.target.value)}
+              placeholder="Seu nome ou apelido..."
+              className="w-full bg-black border border-white/20 rounded-xl px-4 py-3 text-white text-center font-bold outline-none focus:border-[#e50914] transition-colors mb-6"
+            />
+            <button
+              disabled={!welcomeName.trim()}
+              onClick={async () => {
+                await storage.saveUserProfile({ name: welcomeName.trim() });
+                setShowWelcome(false);
+              }}
+              className="w-full bg-[#e50914] text-white font-bold py-3 rounded-xl disabled:opacity-50 transition-colors"
+            >
+              Começar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
